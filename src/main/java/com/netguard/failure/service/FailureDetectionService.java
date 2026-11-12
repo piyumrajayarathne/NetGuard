@@ -42,44 +42,58 @@ public class FailureDetectionService {
 
             return null;
         }
-        
+
         if ("UP".equalsIgnoreCase(data.getStatus()) &&
                 previousStates.get(device) == AlertSeverity.CRITICAL) {
 
             previousStates.put(device, AlertSeverity.NORMAL);
 
             return new AlertEvent(
-                device,
-                "RECOVERY",
-                AlertSeverity.NORMAL,
-                "Device recovered and is reachable again"
+                    device,
+                    "RECOVERY",
+                    AlertSeverity.NORMAL,
+                    "Device recovered and is reachable again"
             );
         }
 
         if (data.getPacketLoss() != null &&
                 data.getPacketLoss() >= PACKET_LOSS_WARNING_THRESHOLD) {
 
-            previousStates.put(device, AlertSeverity.WARNING);
+            AlertSeverity previousState = previousStates.get(device);
 
-            return new AlertEvent(
-                    device,
-                    "WARNING",
-                    AlertSeverity.WARNING,
-                    "High packet loss detected"
-            );
+            if (previousState != AlertSeverity.WARNING) {
+
+                previousStates.put(device, AlertSeverity.WARNING);
+
+                return new AlertEvent(
+                        device,
+                        "WARNING",
+                        AlertSeverity.WARNING,
+                        "High packet loss detected"
+                );
+            }
+
+            return null;
         }
 
         if (data.getLatency() != null &&
                 data.getLatency() >= LATENCY_WARNING_THRESHOLD) {
 
-            previousStates.put(device, AlertSeverity.WARNING);
+            AlertSeverity previousState = previousStates.get(device);
 
-            return new AlertEvent(
-                    device,
-                    "WARNING",
-                    AlertSeverity.WARNING,
-                    "High latency detected"
-            );
+            if (previousState != AlertSeverity.WARNING) {
+
+                previousStates.put(device, AlertSeverity.WARNING);
+
+                return new AlertEvent(
+                        device,
+                        "WARNING",
+                        AlertSeverity.WARNING,
+                        "High latency detected"
+                );
+            }
+
+            return null;
         }
 
         previousStates.put(device, AlertSeverity.NORMAL);
