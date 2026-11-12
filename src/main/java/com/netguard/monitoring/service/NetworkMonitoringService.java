@@ -1,3 +1,4 @@
+
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
@@ -10,16 +11,16 @@ import java.util.List;
 @Service
 public class NetworkMonitoringService {
 
-    private final SocketReachabilityService socketReachabilityService;
+    private final PingReachabilityService pingReachabilityService;
 
     // Constructor injection
     public NetworkMonitoringService(
-            SocketReachabilityService socketReachabilityService) {
+            PingReachabilityService pingReachabilityService) {
 
-        this.socketReachabilityService = socketReachabilityService;
+        this.pingReachabilityService = pingReachabilityService;
     }
 
-    // Monitor multiple configured devices
+    // Monitor multiple configured devices using ping
     public List<MonitoringData> monitorDevices(
             List<NetworkDevice> devices,
             int timeoutMillis,
@@ -30,9 +31,8 @@ public class NetworkMonitoringService {
         for (NetworkDevice device : devices) {
 
             MonitoringData result =
-                    socketReachabilityService.checkReachability(
+                    pingReachabilityService.checkReachability(
                             device.getAddress(),
-                            device.getPort(),
                             timeoutMillis,
                             attempts
                     );

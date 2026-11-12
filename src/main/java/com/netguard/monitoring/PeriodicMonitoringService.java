@@ -1,3 +1,4 @@
+
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
@@ -28,28 +29,18 @@ public class PeriodicMonitoringService {
 
         List<NetworkDevice> devices = Arrays.asList(
 
-                new NetworkDevice(
-                        "Google DNS",
-                        "8.8.8.8",
-                        53
-                ),
+                new NetworkDevice("Google DNS", "8.8.8.8", 53),
 
-                new NetworkDevice(
-                        "Cloudflare DNS",
-                        "1.1.1.1",
-                        53
-                ),
+                new NetworkDevice("Cloudflare DNS", "1.1.1.1", 53),
 
-                new NetworkDevice(
-                        "Google HTTPS",
-                        "google.com",
-                        443
-                )
+                new NetworkDevice("Google HTTPS", "google.com", 443)
         );
 
         scheduler.scheduleAtFixedRate(() -> {
 
-            System.out.println("\n===== NetGuard Periodic Monitoring =====");
+            System.out.println(
+                    "\n===== NetGuard Periodic Ping Monitoring ====="
+            );
 
             List<MonitoringData> results =
                     monitoringService.monitorDevices(
@@ -62,10 +53,17 @@ public class PeriodicMonitoringService {
 
                 System.out.println("\nDevice: " + result.getDevice());
                 System.out.println("Status: " + result.getStatus());
-                System.out.println("Latency: " + result.getLatency() + " ms");
+
                 System.out.println(
-                        "Connection Failure Rate: "
-                                + result.getPacketLoss() + "%"
+                        "Average Latency: " +
+                        (result.getLatency() != null
+                                ? result.getLatency() + " ms"
+                                : "N/A")
+                );
+
+                System.out.println(
+                        "Packet Loss: " +
+                        result.getPacketLoss() + "%"
                 );
             }
 
@@ -73,6 +71,15 @@ public class PeriodicMonitoringService {
     }
 
     public void stopMonitoring() {
-        scheduler.shutdown();
+    scheduler.shutdown();
+
+    try {
+        if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+            scheduler.shutdownNow();
+        }
+    } catch (InterruptedException e) {
+        scheduler.shutdownNow();
+        Thread.currentThread().interrupt();
     }
+}
 }
