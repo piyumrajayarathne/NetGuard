@@ -103,4 +103,26 @@ class FailureDetectionServiceTest {
         assertEquals("NORMAL", result.getEvent());
         assertEquals(AlertSeverity.NORMAL, result.getSeverity());
     }
+
+    @Test
+    void shouldDetectResponseTimeout() {
+
+        FailureDetectionService service = new FailureDetectionService();
+
+        MonitoringData data =
+                new MonitoringData(
+                        "Router-1",
+                        "UP",
+                        50.0,
+                        0.0,
+                        5000.0
+                );
+
+        AlertEvent result = service.analyze(data);
+
+        assertNotNull(result);
+        assertEquals("FAILURE", result.getEvent());
+        assertEquals(AlertSeverity.CRITICAL, result.getSeverity());
+        assertEquals("Response timeout detected", result.getReason());
+    }
 }

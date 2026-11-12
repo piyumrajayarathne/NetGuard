@@ -5,9 +5,6 @@ import com.netguard.failure.model.AlertSeverity;
 import com.netguard.failure.model.MonitoringData;
 import org.springframework.stereotype.Service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,6 +13,7 @@ public class FailureDetectionService {
 
     private static final double LATENCY_WARNING_THRESHOLD = 100.0;
     private static final double PACKET_LOSS_WARNING_THRESHOLD = 10.0;
+    private static final double RESPONSE_TIMEOUT_THRESHOLD = 5000.0;
 
     private static final String STATUS_UP = "UP";
     private static final String STATUS_DOWN = "DOWN";
@@ -30,7 +28,7 @@ public class FailureDetectionService {
 
         String device = data.getDevice();
 
-        if ("DOWN".equalsIgnoreCase(data.getStatus())) {
+        if (STATUS_DOWN.equalsIgnoreCase(data.getStatus())) {
 
             AlertSeverity previousState = previousStates.get(device);
 
@@ -49,7 +47,8 @@ public class FailureDetectionService {
             return null;
         }
 
-        if ("UP".equalsIgnoreCase(data.getStatus()) &&
+        // Device has recovered
+        if (STATUS_UP.equalsIgnoreCase(data.getStatus()) &&
                 previousStates.get(device) == AlertSeverity.CRITICAL) {
 
             previousStates.put(device, AlertSeverity.NORMAL);
@@ -60,6 +59,26 @@ public class FailureDetectionService {
                     AlertSeverity.NORMAL,
                     "Device recovered and is reachable again"
             );
+        }
+
+        if (data.getResponseTime() != null &&
+                data.getResponseTime() >= RESPONSE_TIMEOUT_THRESHOLD) {
+
+            AlertSeverity previousState = previousStates.get(device);
+
+            if (previousState != AlertSeverity.CRITICAL) {
+
+                previousStates.put(device, AlertSeverity.CRITICAL);
+
+                return new AlertEvent(
+                        device,
+                        "FAILURE",
+                        AlertSeverity.CRITICAL,
+                        "Response timeout detected"
+                );
+            }
+
+            return null;
         }
 
         if (data.getPacketLoss() != null &&
@@ -110,49 +129,5 @@ public class FailureDetectionService {
                 AlertSeverity.NORMAL,
                 "Network operating normally"
         );
-    }
-        @Test
-    void shouldReturnToNormalAfterWarning() {
-
-        FailureDetectionService service = new FailureDetectionService();
-
-        MonitoringData warning =
-                new MonitoringData("Router-1", "UP", 150.0, 0.0);
-
-        MonitoringData normal =
-                new MonitoringData("Router-1", "UP", 20.0, 2.0);
-
-        AlertEvent first = service.analyze(warning);
-        AlertEvent second = service.analyze(normal);
-
-        assertNotNull(first);
-        assertEquals("WARNING", first.getEvent());
-        assertEquals(AlertSeverity.WARNING, first.getSeverity());
-
-        assertNotNull(second);
-        assertEquals("NORMAL", second.getEvent());
-        assertEquals(AlertSeverity.NORMAL, second.getSeverity());
-    }
-
-    @Test
-    void shouldDetectCriticalFailureAfterWarning() {
-
-        FailureDetectionService service = new FailureDetectionService();
-
-        MonitoringData warning =
-                new MonitoringData("Router-1", "UP", 150.0, 0.0);
-
-        MonitoringData down =
-                new MonitoringData("Router-1", "DOWN", 0.0, 0.0);
-
-        AlertEvent first = service.analyze(warning);
-        AlertEvent second = service.analyze(down);
-
-        assertNotNull(first);
-        assertEquals("WARNING", first.getEvent());
-
-        assertNotNull(second);
-        assertEquals("FAILURE", second.getEvent());
-        assertEquals(AlertSeverity.CRITICAL, second.getSeverity());
     }
 }
