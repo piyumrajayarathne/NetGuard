@@ -2,6 +2,7 @@ package com.netguard.failure.controller;
 
 import com.netguard.failure.model.AlertEvent;
 import com.netguard.failure.model.MonitoringData;
+import com.netguard.failure.service.NetworkCommunicationService;
 import com.netguard.failure.websocket.NetworkWebSocketHandler;
 
 import org.springframework.http.ResponseEntity;
@@ -11,26 +12,28 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/communication")
 public class CommunicationController {
 
+    private final NetworkCommunicationService communicationService;
     private final NetworkWebSocketHandler webSocketHandler;
 
     public CommunicationController(
+            NetworkCommunicationService communicationService,
             NetworkWebSocketHandler webSocketHandler) {
+
+        this.communicationService = communicationService;
         this.webSocketHandler = webSocketHandler;
     }
 
-    // Receive and broadcast monitoring data
     @PostMapping("/monitoring")
     public ResponseEntity<String> sendMonitoringData(
             @RequestBody MonitoringData data) {
 
-        webSocketHandler.broadcastMonitoringData(data);
+        communicationService.processMonitoringData(data);
 
         return ResponseEntity.ok(
-                "Monitoring data broadcast successfully"
+                "Monitoring data processed and broadcast successfully"
         );
     }
 
-    // Receive and broadcast alert events
     @PostMapping("/alert")
     public ResponseEntity<String> sendAlert(
             @RequestBody AlertEvent alert) {
