@@ -2,6 +2,7 @@
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
+import com.netguard.failure.service.NetworkCommunicationService;
 import com.netguard.monitoring.model.NetworkDevice;
 import org.springframework.stereotype.Service;
 
@@ -15,14 +16,17 @@ import java.util.concurrent.TimeUnit;
 public class PeriodicMonitoringService {
 
     private final NetworkMonitoringService monitoringService;
+    private final NetworkCommunicationService communicationService;
 
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor();
 
     public PeriodicMonitoringService(
-            NetworkMonitoringService monitoringService) {
+            NetworkMonitoringService monitoringService,
+            NetworkCommunicationService communicationService) {
 
         this.monitoringService = monitoringService;
+        this.communicationService = communicationService;
     }
 
     public void startMonitoring() {
@@ -51,6 +55,9 @@ public class PeriodicMonitoringService {
 
             for (MonitoringData result : results) {
 
+                // Send monitoring data to Member 3's communication service
+                communicationService.processMonitoringData(result);
+
                 System.out.println("\nDevice: " + result.getDevice());
                 System.out.println("Status: " + result.getStatus());
 
@@ -71,15 +78,16 @@ public class PeriodicMonitoringService {
     }
 
     public void stopMonitoring() {
-    scheduler.shutdown();
 
-    try {
-        if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+        scheduler.shutdown();
+
+        try {
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
             scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
         }
-    } catch (InterruptedException e) {
-        scheduler.shutdownNow();
-        Thread.currentThread().interrupt();
     }
-}
 }
