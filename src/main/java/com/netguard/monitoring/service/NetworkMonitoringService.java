@@ -1,7 +1,7 @@
-
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
+import com.netguard.monitoring.model.NetworkDevice;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -10,24 +10,32 @@ import java.util.List;
 @Service
 public class NetworkMonitoringService {
 
-    private final NetworkReachabilityService reachabilityService;
+    private final SocketReachabilityService socketReachabilityService;
 
+    // Constructor injection
     public NetworkMonitoringService(
-            NetworkReachabilityService reachabilityService) {
-        this.reachabilityService = reachabilityService;
+            SocketReachabilityService socketReachabilityService) {
+
+        this.socketReachabilityService = socketReachabilityService;
     }
 
+    // Monitor multiple configured devices
     public List<MonitoringData> monitorDevices(
-            List<String> devices,
-            int timeoutMillis) {
+            List<NetworkDevice> devices,
+            int timeoutMillis,
+            int attempts) {
 
         List<MonitoringData> results = new ArrayList<>();
 
-        for (String device : devices) {
+        for (NetworkDevice device : devices) {
 
-           MonitoringData result =
-        reachabilityService.checkReachability(
-                device, timeoutMillis, 3);
+            MonitoringData result =
+                    socketReachabilityService.checkReachability(
+                            device.getAddress(),
+                            device.getPort(),
+                            timeoutMillis,
+                            attempts
+                    );
 
             results.add(result);
         }
