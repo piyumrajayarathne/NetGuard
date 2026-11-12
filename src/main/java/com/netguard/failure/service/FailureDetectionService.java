@@ -5,6 +5,9 @@ import com.netguard.failure.model.AlertSeverity;
 import com.netguard.failure.model.MonitoringData;
 import org.springframework.stereotype.Service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,6 +16,9 @@ public class FailureDetectionService {
 
     private static final double LATENCY_WARNING_THRESHOLD = 100.0;
     private static final double PACKET_LOSS_WARNING_THRESHOLD = 10.0;
+
+    private static final String STATUS_UP = "UP";
+    private static final String STATUS_DOWN = "DOWN";
 
     private final Map<String, AlertSeverity> previousStates = new HashMap<>();
 
@@ -104,5 +110,49 @@ public class FailureDetectionService {
                 AlertSeverity.NORMAL,
                 "Network operating normally"
         );
+    }
+        @Test
+    void shouldReturnToNormalAfterWarning() {
+
+        FailureDetectionService service = new FailureDetectionService();
+
+        MonitoringData warning =
+                new MonitoringData("Router-1", "UP", 150.0, 0.0);
+
+        MonitoringData normal =
+                new MonitoringData("Router-1", "UP", 20.0, 2.0);
+
+        AlertEvent first = service.analyze(warning);
+        AlertEvent second = service.analyze(normal);
+
+        assertNotNull(first);
+        assertEquals("WARNING", first.getEvent());
+        assertEquals(AlertSeverity.WARNING, first.getSeverity());
+
+        assertNotNull(second);
+        assertEquals("NORMAL", second.getEvent());
+        assertEquals(AlertSeverity.NORMAL, second.getSeverity());
+    }
+
+    @Test
+    void shouldDetectCriticalFailureAfterWarning() {
+
+        FailureDetectionService service = new FailureDetectionService();
+
+        MonitoringData warning =
+                new MonitoringData("Router-1", "UP", 150.0, 0.0);
+
+        MonitoringData down =
+                new MonitoringData("Router-1", "DOWN", 0.0, 0.0);
+
+        AlertEvent first = service.analyze(warning);
+        AlertEvent second = service.analyze(down);
+
+        assertNotNull(first);
+        assertEquals("WARNING", first.getEvent());
+
+        assertNotNull(second);
+        assertEquals("FAILURE", second.getEvent());
+        assertEquals(AlertSeverity.CRITICAL, second.getSeverity());
     }
 }
