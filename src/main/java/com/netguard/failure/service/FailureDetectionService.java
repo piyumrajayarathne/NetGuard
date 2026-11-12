@@ -28,7 +28,6 @@ public class FailureDetectionService {
 
             AlertSeverity previousState = previousStates.get(device);
 
-            // Generate failure alert only if device was not already failed
             if (previousState != AlertSeverity.CRITICAL) {
 
                 previousStates.put(device, AlertSeverity.CRITICAL);
@@ -42,6 +41,19 @@ public class FailureDetectionService {
             }
 
             return null;
+        }
+        
+        if ("UP".equalsIgnoreCase(data.getStatus()) &&
+                previousStates.get(device) == AlertSeverity.CRITICAL) {
+
+            previousStates.put(device, AlertSeverity.NORMAL);
+
+            return new AlertEvent(
+                device,
+                "RECOVERY",
+                AlertSeverity.NORMAL,
+                "Device recovered and is reachable again"
+            );
         }
 
         if (data.getPacketLoss() != null &&
