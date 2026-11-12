@@ -5,11 +5,16 @@ import com.netguard.failure.model.AlertSeverity;
 import com.netguard.failure.model.MonitoringData;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Service
 public class FailureDetectionService {
 
     private static final double LATENCY_WARNING_THRESHOLD = 100.0;
     private static final double PACKET_LOSS_WARNING_THRESHOLD = 10.0;
+
+    private final Map<String, AlertSeverity> previousStates = new HashMap<>();
 
     public AlertEvent analyze(MonitoringData data) {
 
@@ -17,21 +22,35 @@ public class FailureDetectionService {
             return null;
         }
 
+        String device = data.getDevice();
+
         if ("DOWN".equalsIgnoreCase(data.getStatus())) {
 
-            return new AlertEvent(
-                    data.getDevice(),
-                    "FAILURE",
-                    AlertSeverity.CRITICAL,
-                    "Device unreachable"
-            );
+            AlertSeverity previousState = previousStates.get(device);
+
+            // Generate failure alert only if device was not already failed
+            if (previousState != AlertSeverity.CRITICAL) {
+
+                previousStates.put(device, AlertSeverity.CRITICAL);
+
+                return new AlertEvent(
+                        device,
+                        "FAILURE",
+                        AlertSeverity.CRITICAL,
+                        "Device unreachable"
+                );
+            }
+
+            return null;
         }
 
         if (data.getPacketLoss() != null &&
                 data.getPacketLoss() >= PACKET_LOSS_WARNING_THRESHOLD) {
 
+            previousStates.put(device, AlertSeverity.WARNING);
+
             return new AlertEvent(
-                    data.getDevice(),
+                    device,
                     "WARNING",
                     AlertSeverity.WARNING,
                     "High packet loss detected"
@@ -41,16 +60,20 @@ public class FailureDetectionService {
         if (data.getLatency() != null &&
                 data.getLatency() >= LATENCY_WARNING_THRESHOLD) {
 
+            previousStates.put(device, AlertSeverity.WARNING);
+
             return new AlertEvent(
-                    data.getDevice(),
+                    device,
                     "WARNING",
                     AlertSeverity.WARNING,
                     "High latency detected"
             );
         }
 
+        previousStates.put(device, AlertSeverity.NORMAL);
+
         return new AlertEvent(
-                data.getDevice(),
+                device,
                 "NORMAL",
                 AlertSeverity.NORMAL,
                 "Network operating normally"
