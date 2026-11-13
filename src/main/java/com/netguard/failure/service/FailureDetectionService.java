@@ -20,6 +20,16 @@ public class FailureDetectionService {
 
     private final Map<String, AlertSeverity> previousStates = new HashMap<>();
 
+    private boolean isDeviceUp(String status) {
+        return "UP".equalsIgnoreCase(status)
+                || "REACHABLE".equalsIgnoreCase(status);
+    }
+
+    private boolean isDeviceDown(String status) {
+        return "DOWN".equalsIgnoreCase(status)
+                || "UNREACHABLE".equalsIgnoreCase(status);
+    }
+
     public AlertEvent analyze(MonitoringData data) {
 
         if (data == null) {
@@ -28,7 +38,7 @@ public class FailureDetectionService {
 
         String device = data.getDevice();
 
-        if (STATUS_DOWN.equalsIgnoreCase(data.getStatus())) {
+        if (isDeviceDown(data.getStatus())) {
 
             AlertSeverity previousState = previousStates.get(device);
 
@@ -48,7 +58,7 @@ public class FailureDetectionService {
         }
 
         // Device has recovered
-        if (STATUS_UP.equalsIgnoreCase(data.getStatus()) &&
+        if (isDeviceUp(data.getStatus()) &&
                 previousStates.get(device) == AlertSeverity.CRITICAL) {
 
             previousStates.put(device, AlertSeverity.NORMAL);
