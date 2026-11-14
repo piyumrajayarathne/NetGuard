@@ -1,3 +1,4 @@
+
 package com.netguard.failure.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,80 +21,140 @@ public class NetworkWebSocketHandler extends TextWebSocketHandler {
     private final Set<WebSocketSession> sessions =
             ConcurrentHashMap.newKeySet();
 
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .findAndRegisterModules();
+    private final ObjectMapper objectMapper =
+            new ObjectMapper().findAndRegisterModules();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+
         sessions.add(session);
-        System.out.println("WebSocket client connected: " + session.getId());
+
+        System.out.println("================================");
+        System.out.println("WebSocket client connected!");
+        System.out.println("Session ID: " + session.getId());
+        System.out.println("Total connected clients: " + sessions.size());
+        System.out.println("================================");
     }
 
     @Override
     protected void handleTextMessage(
-            WebSocketSession session, TextMessage message) throws IOException {
+            WebSocketSession session,
+            TextMessage message) throws IOException {
 
-        System.out.println("Received message: " + message.getPayload());
+        System.out.println(
+                "Received message: " + message.getPayload()
+        );
 
         session.sendMessage(
-                new TextMessage("Server received: " + message.getPayload())
+                new TextMessage(
+                        "Server received: " + message.getPayload()
+                )
         );
     }
 
     @Override
     public void afterConnectionClosed(
-            WebSocketSession session, CloseStatus status) {
+            WebSocketSession session,
+            CloseStatus status) {
 
         sessions.remove(session);
-        System.out.println("WebSocket client disconnected: " + session.getId());
+
+        System.out.println("================================");
+        System.out.println("WebSocket client disconnected!");
+        System.out.println("Session ID: " + session.getId());
+        System.out.println("Close status: " + status);
+        System.out.println("Remaining clients: " + sessions.size());
+        System.out.println("================================");
+    }
+
+    @Override
+    public void handleTransportError(
+            WebSocketSession session,
+            Throwable exception) {
+
+        System.err.println(
+                "WebSocket transport error: " + exception.getMessage()
+        );
+
+        sessions.remove(session);
+
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (IOException e) {
+            System.err.println(
+                    "Failed to close WebSocket session: " + e.getMessage()
+            );
+        }
     }
 
     // Broadcast monitoring data to all connected clients
     public void broadcastMonitoringData(MonitoringData data) {
+
         sendToAllClients("MONITORING_DATA", data);
     }
 
     // Broadcast alert events to all connected clients
     public void broadcastAlert(AlertEvent alert) {
+
         sendToAllClients("ALERT_EVENT", alert);
     }
 
-    // Common method for sending JSON messages
+    // Send JSON messages to all connected clients
     private void sendToAllClients(String type, Object data) {
 
         try {
+
             String jsonMessage = objectMapper.writeValueAsString(
                     new WebSocketMessage(type, data)
             );
 
+            TextMessage textMessage = new TextMessage(jsonMessage);
+
             for (WebSocketSession session : sessions) {
 
-                if (session.isOpen()) {
-                    try {
-                        session.sendMessage(new TextMessage(jsonMessage));
-                    } catch (IOException e) {
-                        System.err.println(
-                                "Failed to send message to client: "
-                                        + e.getMessage()
-                        );
+                if (!session.isOpen()) {
+                    sessions.remove(session);
+                    continue;
+                }
+
+                try {
+
+                    synchronized (session) {
+                        session.sendMessage(textMessage);
                     }
+
+                } catch (IOException e) {
+
+                    System.err.println(
+                            "Failed to send message to client "
+                                    + session.getId()
+                                    + ": "
+                                    + e.getMessage()
+                    );
+
+                    sessions.remove(session);
                 }
             }
 
         } catch (IOException e) {
+
             System.err.println(
-                    "Failed to convert message to JSON: " + e.getMessage()
+                    "Failed to convert message to JSON: "
+                            + e.getMessage()
             );
         }
     }
 
-    // Message structure sent to frontend
+    // Message structure sent to the frontend
     private static class WebSocketMessage {
 
         private final String type;
         private final Object data;
 
         public WebSocketMessage(String type, Object data) {
+
             this.type = type;
             this.data = data;
         }

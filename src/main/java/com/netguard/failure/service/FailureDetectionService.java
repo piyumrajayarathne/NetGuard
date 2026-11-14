@@ -1,3 +1,4 @@
+
 package com.netguard.failure.service;
 
 import com.netguard.failure.model.AlertEvent;
@@ -15,14 +16,8 @@ public class FailureDetectionService {
     private static final double PACKET_LOSS_WARNING_THRESHOLD = 10.0;
     private static final double RESPONSE_TIMEOUT_THRESHOLD = 5000.0;
 
-    private final Map<String, AlertSeverity> previousStates =
-            new HashMap<>();
-
-    private final AlertEventService alertEventService;
-
-    public FailureDetectionService(AlertEventService alertEventService) {
-        this.alertEventService = alertEventService;
-    }
+    // Remember the exact previous condition for each device
+    private final Map<String, String> previousStates = new HashMap<>();
 
     private boolean isDeviceUp(String status) {
         return "UP".equalsIgnoreCase(status)
@@ -36,131 +31,81 @@ public class FailureDetectionService {
 
     public AlertEvent analyze(MonitoringData data) {
 
-        if (data == null) {
+        if (data == null || data.getDevice() == null) {
             return null;
         }
 
         String device = data.getDevice();
+        String currentState = "NORMAL";
+        String reason = "Network operating normally";
+        AlertSeverity severity = AlertSeverity.NORMAL;
+        String event = "NORMAL";
 
         if (isDeviceDown(data.getStatus())) {
 
-            AlertSeverity previousState = previousStates.get(device);
+            currentState = "DEVICE_DOWN";
+            reason = "Device unreachable";
+            severity = AlertSeverity.CRITICAL;
+            event = "FAILURE";
 
-            if (previousState != AlertSeverity.CRITICAL) {
-
-                previousStates.put(device, AlertSeverity.CRITICAL);
-
-                AlertEvent alert = new AlertEvent(
-                        device,
-                        "FAILURE",
-                        AlertSeverity.CRITICAL,
-                        "Device unreachable"
-                );
-
-                alertEventService.save(alert);
-
-                return alert;
-            }
-
-            return null;
-        }
-
-        if (data.getResponseTime() != null &&
+        } else if (data.getResponseTime() != null &&
                 data.getResponseTime() >= RESPONSE_TIMEOUT_THRESHOLD) {
 
-            AlertSeverity previousState = previousStates.get(device);
+            currentState = "RESPONSE_TIMEOUT";
+            reason = "Response timeout detected";
+            severity = AlertSeverity.CRITICAL;
+            event = "FAILURE";
 
-            if (previousState != AlertSeverity.CRITICAL) {
-
-                previousStates.put(device, AlertSeverity.CRITICAL);
-
-                AlertEvent alert = new AlertEvent(
-                        device,
-                        "FAILURE",
-                        AlertSeverity.CRITICAL,
-                        "Response timeout detected"
-                );
-
-                alertEventService.save(alert);
-
-                return alert;
-            }
-
-            return null;
-        }
-
-        if (data.getPacketLoss() != null &&
+        } else if (data.getPacketLoss() != null &&
                 data.getPacketLoss() >= PACKET_LOSS_WARNING_THRESHOLD) {
 
-            AlertSeverity previousState = previousStates.get(device);
+            currentState = "HIGH_PACKET_LOSS";
+            reason = "High packet loss detected";
+            severity = AlertSeverity.WARNING;
+            event = "WARNING";
 
-            if (previousState != AlertSeverity.WARNING) {
-
-                previousStates.put(device, AlertSeverity.WARNING);
-
-                AlertEvent alert = new AlertEvent(
-                        device,
-                        "WARNING",
-                        AlertSeverity.WARNING,
-                        "High packet loss detected"
-                );
-
-                alertEventService.save(alert);
-
-                return alert;
-            }
-
-            return null;
-        }
-
-        if (data.getLatency() != null &&
+        } else if (data.getLatency() != null &&
                 data.getLatency() >= LATENCY_WARNING_THRESHOLD) {
 
-            AlertSeverity previousState = previousStates.get(device);
+            currentState = "HIGH_LATENCY";
+            reason = "High latency detected";
+            severity = AlertSeverity.WARNING;
+            event = "WARNING";
+        }
 
-            if (previousState != AlertSeverity.WARNING) {
+        String previousState = previousStates.get(device);
 
-                previousStates.put(device, AlertSeverity.WARNING);
+        // Generate an alert only when the condition changes
+        if (!currentState.equals(previousState)) {
 
-                AlertEvent alert = new AlertEvent(
-                        device,
-                        "WARNING",
-                        AlertSeverity.WARNING,
-                        "High latency detected"
-                );
+            previousStates.put(device, currentState);
 
-                alertEventService.save(alert);
+            if ("NORMAL".equals(currentState)) {
 
-                return alert;
+                // Send recovery only when recovering from a problem
+                if (previousState != null &&
+                        !"NORMAL".equals(previousState)) {
+
+                    return new AlertEvent(
+                            device,
+                            "RECOVERY",
+                            AlertSeverity.NORMAL,
+                            "Device returned to normal operation"
+                    );
+                }
+
+                return null;
             }
 
-            return null;
-        }
-
-        if (isDeviceUp(data.getStatus()) &&
-                previousStates.get(device) == AlertSeverity.CRITICAL) {
-
-            previousStates.put(device, AlertSeverity.NORMAL);
-
-            AlertEvent alert = new AlertEvent(
+            return new AlertEvent(
                     device,
-                    "RECOVERY",
-                    AlertSeverity.NORMAL,
-                    "Device recovered and is reachable again"
+                    event,
+                    severity,
+                    reason
             );
-
-            alertEventService.save(alert);
-
-            return alert;
         }
 
-        previousStates.put(device, AlertSeverity.NORMAL);
-
-        return new AlertEvent(
-                device,
-                "NORMAL",
-                AlertSeverity.NORMAL,
-                "Network operating normally"
-        );
+        // Same condition as the previous monitoring cycle
+        return null;
     }
 }

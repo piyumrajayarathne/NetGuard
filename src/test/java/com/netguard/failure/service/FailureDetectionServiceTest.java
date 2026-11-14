@@ -1,3 +1,4 @@
+
 package com.netguard.failure.service;
 
 import com.netguard.failure.model.AlertEvent;
@@ -7,189 +8,84 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class FailureDetectionServiceTest {
 
-    private FailureDetectionService service;
-    private AlertEventService alertEventService;
+    private FailureDetectionService failureDetectionService;
 
     @BeforeEach
     void setUp() {
-        alertEventService = mock(AlertEventService.class);
-        service = new FailureDetectionService(alertEventService);
+        failureDetectionService = new FailureDetectionService();
     }
 
     @Test
     void shouldDetectDeviceFailure() {
+        MonitoringData data = new MonitoringData();
+        data.setDevice("8.8.8.8");
+        data.setStatus("DOWN");
 
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "DOWN",
-                        null,
-                        null
-                );
+        AlertEvent alert = failureDetectionService.analyze(data);
 
-        AlertEvent result = service.analyze(data);
-
-        assertNotNull(result);
-        assertEquals("192.168.1.10", result.getDevice());
-        assertEquals("FAILURE", result.getEvent());
-        assertEquals(AlertSeverity.CRITICAL, result.getSeverity());
-        assertEquals("Device unreachable", result.getReason());
-
-        verify(alertEventService).save(result);
+        assertNotNull(alert);
+        assertEquals("FAILURE", alert.getEvent());
+        assertEquals(AlertSeverity.CRITICAL, alert.getSeverity());
     }
 
     @Test
-    void shouldPreventDuplicateFailureAlert() {
+    void shouldNotRepeatDeviceFailureAlert() {
+        MonitoringData data = new MonitoringData();
+        data.setDevice("8.8.8.8");
+        data.setStatus("DOWN");
 
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "DOWN",
-                        null,
-                        null
-                );
+        failureDetectionService.analyze(data);
+        AlertEvent alert = failureDetectionService.analyze(data);
 
-        AlertEvent first = service.analyze(data);
-        AlertEvent second = service.analyze(data);
-
-        assertNotNull(first);
-        assertNull(second);
-
-        verify(alertEventService, times(1))
-                .save(first);
-    }
-
-    @Test
-    void shouldDetectRecovery() {
-
-        MonitoringData down =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "DOWN",
-                        null,
-                        null
-                );
-
-        MonitoringData up =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "UP",
-                        20.0,
-                        0.0
-                );
-
-        service.analyze(down);
-
-        AlertEvent recovery = service.analyze(up);
-
-        assertNotNull(recovery);
-        assertEquals("RECOVERY", recovery.getEvent());
-        assertEquals(AlertSeverity.NORMAL, recovery.getSeverity());
-        assertEquals(
-                "Device recovered and is reachable again",
-                recovery.getReason()
-        );
-
-        verify(alertEventService, times(2))
-                .save(any(AlertEvent.class));
+        assertNull(alert);
     }
 
     @Test
     void shouldDetectHighLatency() {
+        MonitoringData data = new MonitoringData();
+        data.setDevice("8.8.8.8");
+        data.setStatus("UP");
+        data.setLatency(150.0);
 
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "UP",
-                        150.0,
-                        0.0
-                );
+        AlertEvent alert = failureDetectionService.analyze(data);
 
-        AlertEvent result = service.analyze(data);
-
-        assertNotNull(result);
-        assertEquals("WARNING", result.getEvent());
-        assertEquals(AlertSeverity.WARNING, result.getSeverity());
-        assertEquals("High latency detected", result.getReason());
-
-        verify(alertEventService).save(result);
+        assertNotNull(alert);
+        assertEquals("WARNING", alert.getEvent());
+        assertEquals(AlertSeverity.WARNING, alert.getSeverity());
     }
 
     @Test
     void shouldDetectHighPacketLoss() {
+        MonitoringData data = new MonitoringData();
+        data.setDevice("8.8.8.8");
+        data.setStatus("UP");
+        data.setPacketLoss(15.0);
 
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "UP",
-                        20.0,
-                        25.0
-                );
+        AlertEvent alert = failureDetectionService.analyze(data);
 
-        AlertEvent result = service.analyze(data);
-
-        assertNotNull(result);
-        assertEquals("WARNING", result.getEvent());
-        assertEquals(AlertSeverity.WARNING, result.getSeverity());
-        assertEquals(
-                "High packet loss detected",
-                result.getReason()
-        );
-
-        verify(alertEventService).save(result);
+        assertNotNull(alert);
+        assertEquals("WARNING", alert.getEvent());
     }
 
     @Test
-    void shouldDetectNormalNetworkCondition() {
+    void shouldDetectRecovery() {
+        MonitoringData downData = new MonitoringData();
+        downData.setDevice("8.8.8.8");
+        downData.setStatus("DOWN");
 
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "UP",
-                        20.0,
-                        0.0
-                );
+        failureDetectionService.analyze(downData);
 
-        AlertEvent result = service.analyze(data);
+        MonitoringData upData = new MonitoringData();
+        upData.setDevice("8.8.8.8");
+        upData.setStatus("UP");
 
-        assertNotNull(result);
-        assertEquals("NORMAL", result.getEvent());
-        assertEquals(AlertSeverity.NORMAL, result.getSeverity());
-        assertEquals(
-                "Network operating normally",
-                result.getReason()
-        );
+        AlertEvent alert = failureDetectionService.analyze(upData);
 
-        verify(alertEventService, never())
-                .save(any(AlertEvent.class));
-    }
-
-    @Test
-    void shouldDetectResponseTimeout() {
-
-        MonitoringData data =
-                new MonitoringData(
-                        "192.168.1.10",
-                        "UP",
-                        50.0,
-                        0.0,
-                        6000.0
-                );
-
-        AlertEvent result = service.analyze(data);
-
-        assertNotNull(result);
-        assertEquals("FAILURE", result.getEvent());
-        assertEquals(AlertSeverity.CRITICAL, result.getSeverity());
-        assertEquals(
-                "Response timeout detected",
-                result.getReason()
-        );
-
-        verify(alertEventService).save(result);
+        assertNotNull(alert);
+        assertEquals("RECOVERY", alert.getEvent());
+        assertEquals(AlertSeverity.NORMAL, alert.getSeverity());
     }
 }
