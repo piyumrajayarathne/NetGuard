@@ -1,3 +1,4 @@
+
 package com.netguard.failure.service;
 
 import com.netguard.failure.entity.AlertEntity;
@@ -43,20 +44,17 @@ public class NetworkCommunicationService {
             return;
         }
 
-        // Convert monitoring status
         if ("REACHABLE".equalsIgnoreCase(data.getStatus())) {
             data.setStatus("UP");
         } else if ("UNREACHABLE".equalsIgnoreCase(data.getStatus())) {
             data.setStatus("DOWN");
         }
 
-        // Find registered device using its IP address
         NetworkDeviceEntity device =
                 networkDeviceRepository.findByAddress(data.getDevice())
                         .orElseThrow(() -> new IllegalStateException(
                                 "Device not found: " + data.getDevice()));
 
-        // Save monitoring history
         MonitoringLogEntity log = new MonitoringLogEntity(
                 device,
                 data.getStatus(),
@@ -67,10 +65,8 @@ public class NetworkCommunicationService {
 
         monitoringLogRepository.save(log);
 
-        // Analyze monitoring data
         AlertEvent alert = failureDetectionService.analyze(data);
 
-        // Save and broadcast only actual alerts
         if (alert != null &&
                 !"NORMAL".equalsIgnoreCase(alert.getEvent())) {
 
@@ -85,10 +81,19 @@ public class NetworkCommunicationService {
 
             alertRepository.save(alertEntity);
 
-            webSocketHandler.broadcastAlert(alert);
+            // Broadcast alert with the registered device address.
+            AlertEvent frontendAlert = new AlertEvent(
+        device.getAddress(),
+        alert.getEvent(),
+        alert.getSeverity(),
+        alert.getReason()
+);
+
+frontendAlert.setTimestamp(alert.getTimestamp());
+
+webSocketHandler.broadcastAlert(frontendAlert);
         }
 
-        // Broadcast monitoring data
         webSocketHandler.broadcastMonitoringData(data);
     }
 }
