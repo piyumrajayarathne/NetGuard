@@ -15,10 +15,14 @@ public class FailureDetectionService {
     private static final double PACKET_LOSS_WARNING_THRESHOLD = 10.0;
     private static final double RESPONSE_TIMEOUT_THRESHOLD = 5000.0;
 
-    private static final String STATUS_UP = "UP";
-    private static final String STATUS_DOWN = "DOWN";
+    private final Map<String, AlertSeverity> previousStates =
+            new HashMap<>();
 
-    private final Map<String, AlertSeverity> previousStates = new HashMap<>();
+    private final AlertEventService alertEventService;
+
+    public FailureDetectionService(AlertEventService alertEventService) {
+        this.alertEventService = alertEventService;
+    }
 
     private boolean isDeviceUp(String status) {
         return "UP".equalsIgnoreCase(status)
@@ -46,29 +50,19 @@ public class FailureDetectionService {
 
                 previousStates.put(device, AlertSeverity.CRITICAL);
 
-                return new AlertEvent(
+                AlertEvent alert = new AlertEvent(
                         device,
                         "FAILURE",
                         AlertSeverity.CRITICAL,
                         "Device unreachable"
                 );
+
+                alertEventService.save(alert);
+
+                return alert;
             }
 
             return null;
-        }
-
-        // Device has recovered
-        if (isDeviceUp(data.getStatus()) &&
-                previousStates.get(device) == AlertSeverity.CRITICAL) {
-
-            previousStates.put(device, AlertSeverity.NORMAL);
-
-            return new AlertEvent(
-                    device,
-                    "RECOVERY",
-                    AlertSeverity.NORMAL,
-                    "Device recovered and is reachable again"
-            );
         }
 
         if (data.getResponseTime() != null &&
@@ -80,12 +74,16 @@ public class FailureDetectionService {
 
                 previousStates.put(device, AlertSeverity.CRITICAL);
 
-                return new AlertEvent(
+                AlertEvent alert = new AlertEvent(
                         device,
                         "FAILURE",
                         AlertSeverity.CRITICAL,
                         "Response timeout detected"
                 );
+
+                alertEventService.save(alert);
+
+                return alert;
             }
 
             return null;
@@ -100,12 +98,16 @@ public class FailureDetectionService {
 
                 previousStates.put(device, AlertSeverity.WARNING);
 
-                return new AlertEvent(
+                AlertEvent alert = new AlertEvent(
                         device,
                         "WARNING",
                         AlertSeverity.WARNING,
                         "High packet loss detected"
                 );
+
+                alertEventService.save(alert);
+
+                return alert;
             }
 
             return null;
@@ -120,15 +122,36 @@ public class FailureDetectionService {
 
                 previousStates.put(device, AlertSeverity.WARNING);
 
-                return new AlertEvent(
+                AlertEvent alert = new AlertEvent(
                         device,
                         "WARNING",
                         AlertSeverity.WARNING,
                         "High latency detected"
                 );
+
+                alertEventService.save(alert);
+
+                return alert;
             }
 
             return null;
+        }
+
+        if (isDeviceUp(data.getStatus()) &&
+                previousStates.get(device) == AlertSeverity.CRITICAL) {
+
+            previousStates.put(device, AlertSeverity.NORMAL);
+
+            AlertEvent alert = new AlertEvent(
+                    device,
+                    "RECOVERY",
+                    AlertSeverity.NORMAL,
+                    "Device recovered and is reachable again"
+            );
+
+            alertEventService.save(alert);
+
+            return alert;
         }
 
         previousStates.put(device, AlertSeverity.NORMAL);

@@ -1,7 +1,7 @@
-
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
+import com.netguard.failure.service.MonitoringLogService;
 import com.netguard.monitoring.model.NetworkDevice;
 import org.springframework.stereotype.Service;
 
@@ -12,15 +12,16 @@ import java.util.List;
 public class NetworkMonitoringService {
 
     private final PingReachabilityService pingReachabilityService;
+    private final MonitoringLogService monitoringLogService;
 
-    // Constructor injection
     public NetworkMonitoringService(
-            PingReachabilityService pingReachabilityService) {
+            PingReachabilityService pingReachabilityService,
+            MonitoringLogService monitoringLogService) {
 
         this.pingReachabilityService = pingReachabilityService;
+        this.monitoringLogService = monitoringLogService;
     }
 
-    // Monitor multiple configured devices using ping
     public List<MonitoringData> monitorDevices(
             List<NetworkDevice> devices,
             int timeoutMillis,
@@ -36,6 +37,8 @@ public class NetworkMonitoringService {
                             timeoutMillis,
                             attempts
                     );
+
+            monitoringLogService.save(result);
 
             results.add(result);
         }

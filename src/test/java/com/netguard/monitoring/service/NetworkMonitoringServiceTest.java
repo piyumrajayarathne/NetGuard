@@ -1,7 +1,7 @@
-
 package com.netguard.monitoring.service;
 
 import com.netguard.failure.model.MonitoringData;
+import com.netguard.failure.service.MonitoringLogService;
 import com.netguard.monitoring.model.NetworkDevice;
 import org.junit.jupiter.api.Test;
 
@@ -16,15 +16,18 @@ class NetworkMonitoringServiceTest {
     @Test
     void shouldMonitorMultipleDevices() {
 
-        // Create a mock ping monitoring service
         PingReachabilityService pingService =
                 mock(PingReachabilityService.class);
 
-        // Create the service we want to test
-        NetworkMonitoringService monitoringService =
-                new NetworkMonitoringService(pingService);
+        MonitoringLogService monitoringLogService =
+                mock(MonitoringLogService.class);
 
-        // Configure two network devices
+        NetworkMonitoringService monitoringService =
+                new NetworkMonitoringService(
+                        pingService,
+                        monitoringLogService
+                );
+
         List<NetworkDevice> devices = Arrays.asList(
 
                 new NetworkDevice(
@@ -40,7 +43,6 @@ class NetworkMonitoringServiceTest {
                 )
         );
 
-        // Define simulated monitoring results
         MonitoringData googleResult =
                 new MonitoringData(
                         "8.8.8.8",
@@ -57,7 +59,6 @@ class NetworkMonitoringServiceTest {
                         0.0
                 );
 
-        // Tell Mockito what results to return
         when(pingService.checkReachability(
                 "8.8.8.8", 3000, 5))
                 .thenReturn(googleResult);
@@ -66,7 +67,6 @@ class NetworkMonitoringServiceTest {
                 "1.1.1.1", 3000, 5))
                 .thenReturn(cloudflareResult);
 
-        // Run the monitoring service
         List<MonitoringData> results =
                 monitoringService.monitorDevices(
                         devices,
@@ -74,7 +74,6 @@ class NetworkMonitoringServiceTest {
                         5
                 );
 
-        // Check the results
         assertEquals(2, results.size());
 
         assertEquals("8.8.8.8", results.get(0).getDevice());
@@ -89,11 +88,13 @@ class NetworkMonitoringServiceTest {
         assertEquals(0.0, results.get(0).getPacketLoss());
         assertEquals(0.0, results.get(1).getPacketLoss());
 
-        // Verify that both devices were checked correctly
         verify(pingService).checkReachability(
                 "8.8.8.8", 3000, 5);
 
         verify(pingService).checkReachability(
                 "1.1.1.1", 3000, 5);
+
+        verify(monitoringLogService, times(2))
+                .save(any(MonitoringData.class));
     }
 }
